@@ -1,35 +1,38 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+
+import os
+import sys
 from base64 import b64encode as encode
-import os, sys
-import urllib, urllib2
+
+import urllib3
 
 
-if sys.platform == "darwin":
-    browser = 'open'
-    cmd = 'screencapture -s'
+if sys.platform == 'darwin':
+    CMD = 'screencapture -s'
+    BROWSER = 'open'
 else:
-    cmd = 'import'
-    browser = 'x-www-browser'
+    CMD = 'import'
+    BROWSER = 'x-www-browser'
 
-fn = "/tmp/__image.png"
-os.system('%s %s' % (cmd, fn, ))
+CAPTURE = '/tmp/__image.png'
+URL = 'http://cropme.ru/upload'
 
-with open(fn, 'r') as f:
-  image = f.read()
-image_string = encode(image)
-url = 'http://cropme.ru/upload'
-data = {'image': image_string}
+os.system('{} {}'.format(CMD, CAPTURE))
+
+with open(CAPTURE, 'rb') as f:
+    image_binary = f.read()
+
 try:
-    data = urllib.urlencode(data)
-    request = urllib2.Request(url, data)
-    response = urllib2.urlopen(request)
-    resp_text = response.read()
-    if resp_text != 'error':
-        xclip = os.system('which xclip > /dev/null')
-        if xclip == 0:
-            os.system('notify-send "Url copied: %s"' % resp_text)
-            os.system('echo "%s"|xclip' % resp_text)
+    http = urllib3.PoolManager()
+    req = http.request('POST', URL, {'image': encode(image_binary)})
+    res = req.data.decode()
+    if res == 'error':
+        raise Exception('Server returns error code')
+    else:
+        if os.system('which xclip > /dev/null'):
+            result = '{1} {0}'
         else:
-            os.system("%s %s" % (browser, resp_text, ))
-except Exception, detail:
-    print "Error: %s" % detail
+            result = 'notify-send "URL copied" "{0}"; echo {0} | xclip'
+        os.system(result.format(res, BROWSER))
+except Exception as details:
+    print('Error: {}'.format(details))
